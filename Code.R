@@ -2,10 +2,10 @@
 library(igraph)
 
 g<-read.graph("wikipedia.gml",format="gml")
-plot(g,vertex.label=NA,vertex.size=0.1,arrows.size=0.1)
 
 
 ################################ Fonction Résumé ###############################
+
 resume <- function(graph){
   print("vertices : ")
   print(vcount(graph))
@@ -18,7 +18,9 @@ resume <- function(graph){
 }
 
 resume(g)
+
 ############################# Distribution de degrés ###########################
+
 degreeDistRepres <- function(graph){
   d <- degree.distribution(graph)
   plot(d,type="l")
@@ -26,7 +28,7 @@ degreeDistRepres <- function(graph){
 
 degreeDistRepres(g)
 
-clusters(g)
+############################## Modularité R ####################################
 
 mod_R <-function(g,C,B,S){
   #R = B_{in}/B_{out}
@@ -35,7 +37,9 @@ mod_R <-function(g,C,B,S){
   bout<-length(E(g)[B %--% S])
   return (bin/(bin+bout))
 }
-#Exemple du cours
+
+################ Application modularité R à l'exemple du cours #################
+
 g<-graph.empty(directed=FALSE)
 g<-add.vertices(g,6)
 g<-add.edges(g,c(1,2,2,3,2,4,4,5,4,6,5,6))
@@ -45,7 +49,8 @@ B=c(4,5)
 S=c(2,6)
 mod_R(g,C,B,S)
 
-#2
+################################# Modularité M #################################
+
 mod_M<-function(g,C,B,S){
   #D = B union C
   #M = D_{in}/D_{out}
@@ -55,14 +60,17 @@ mod_M<-function(g,C,B,S){
   return(din/dout)
 }
 
-#3
+################################# Modularité L #################################
+
 mod_L<-function(g,C,B,S){
   D<-union(C,B)
   lin<-sum(sapply(D,neighbors_in,g,D))/length(D)
   lout <-sum(sapply(B,neighbors_in,g,S))/length(B)
   return(lin/lout)
 }
-#4
+
+########### Fonctions de calcul de la communauté égo-centrée ###################
+
 update <- function(n,g,C,B,S){
   # move n in S to D
   S<- S[S!=n]
@@ -125,13 +133,27 @@ local_com <- function(target,g,mod){
   }
 }
 
-#5
-
 ego_partition<-function(target,g,mod){
   res<-local_com(target,g,mod)
   res_not_com<-V(g)[!(id %in% res)]$id
   return(list(res,res_not_com))
 }
-g=dolphins
-target=1
-ego_partition(1,g,mod_R)
+
+################################ Test ##########################################
+
+
+# Plus grande composante connexe de g
+g1<-largest_component(g)
+
+# Communauté égo-centrée avec sommet cible = 1
+ego<-ego_partition(1,g1,mod_R)
+ego
+
+V(g1)[[1]]$label # Homochonous
+
+neighbors(g1,1,mode="total")
+
+x<-induced_subgraph(g1,ego[[1]])
+x
+plot(x)
+
