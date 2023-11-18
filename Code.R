@@ -1,9 +1,9 @@
 ################################### Projet ARS #################################
 library(igraph)
 
-g<-read.graph("wikipedia.gml",format="gml")
-
-
+wikipedia<-read.graph("wikipedia.gml",format="gml")
+attributes(V(g))
+V(g)[[2]]$wikiid
 ################################ Fonction Résumé ###############################
 
 resume <- function(graph){
@@ -33,7 +33,7 @@ degreeDistRepres(g)
 mod_R <-function(g,C,B,S){
   #R = B_{in}/B_{out}
   #C,B,S sont trois sous ensembles disjoints de V(g), g est un graphe
-  bin<-length(E(g)[B %--% B])
+  bin<-length(E(g1)[B %--% B])
   bout<-length(E(g)[B %--% S])
   return (bin/(bin+bout))
 }
@@ -69,25 +69,32 @@ mod_L<-function(g,C,B,S){
   return(lin/lout)
 }
 
+
+neighbors_in<-function(n,g,E){
+  #return the numbrer of neighbor of node n in set Ein graph g
+  return(length(intersect(neighbors(g,n),E)))
+  
+}
 ########### Fonctions de calcul de la communauté égo-centrée ###################
 
 update <- function(n,g,C,B,S){
   # move n in S to D
   S<- S[S!=n]
   D<- union(C,B)
-  if(all(neighbors(g,n) %in% D)){
+  if(all(neighbors(g,id_from_wikiid(n,wikipedia))$wikiid %in% D)){
     # add n to C
     C <- union(C,n)
+    
   }
   else{
     #add n to B
     B<-union(B,n)
-    new_s=setdiff(neighbors(g,n),union(D,S))
+    new_s=setdiff(neighbors(g,id_from_wikiid(n,wikipedia)),union(D,S))
     if(length(new_s)>0){
       S<-union(S,new_s)
     }
     for(b in B){
-      if(all(neighbors(g,b)%in% D)){
+      if(all(neighbors(g,id_from_wikiid(b,wikipedia))%in% D)){
         B<-B[B!=b]
         C<-union(C,b)
       }
@@ -105,13 +112,14 @@ compute_quality<-function(n,g,C,B,S,mod){
   S<-res$S
   return(mod(g,C,B,S))
 }
-
+target=V(g1)[[1]]$wikiid
+mod=mod_R
 local_com <- function(target,g,mod){
   #initialisation
-  if(is.igraph(g) && target %in% V(g)){
+  if(is.igraph(g) && target %in% V(g)$wikiid){
     C<-c()
     B<-c(target)
-    S<- c(V(g)[neighbors(g,target)]$id)
+    S<- c(V(g)[neighbors(g,id_from_wikiid(target,wikipedia))]$wikiid)
     Q<-0
     new_Q<-0
     while((length(S)>0) && (new_Q>=Q)){
@@ -135,7 +143,7 @@ local_com <- function(target,g,mod){
 
 ego_partition<-function(target,g,mod){
   res<-local_com(target,g,mod)
-  res_not_com<-V(g)[!(id %in% res)]$id
+  res_not_com<-V(g)[!(wikiid %in% res)]$wikiid
   return(list(res,res_not_com))
 }
 
@@ -143,17 +151,22 @@ ego_partition<-function(target,g,mod){
 
 
 # Plus grande composante connexe de g
-g1<-largest_component(g)
+g1<-largest_component(wikipedia)
+
 
 # Communauté égo-centrée avec sommet cible = 1
-ego<-ego_partition(1,g1,mod_R)
-ego
+
+ego<-ego_partition(V(g1)[[1]]$wikiid,g1,mod_R)
+
 
 V(g1)[[1]]$label # Homochonous
 
 neighbors(g1,1,mode="total")
 
-x<-induced_subgraph(g1,ego[[1]])
-x
-plot(x)
+neighbors(g,V(g)[[1]]$wikiid,mode="all")$wikiid
+
+id_from_wikiid<-function(wikiid,g){
+  return(which(V(g)$wikiid==wikiid))
+}
+id_from_wikiid(V(g)[[1]]$wikiid,g)
 
