@@ -2,8 +2,8 @@
 library(igraph)
 
 wikipedia<-read.graph("wikipedia.gml",format="gml")
-attributes(V(g))
-V(g)[[2]]$wikiid
+V(wikipedia)[[2]]$wikiid
+
 ################################ Fonction Résumé ###############################
 
 resume <- function(graph){
@@ -17,7 +17,7 @@ resume <- function(graph){
   print(transitivity(g))
 }
 
-resume(g)
+resume(wikipedia)
 
 ############################# Distribution de degrés ###########################
 
@@ -29,25 +29,18 @@ degreeDistRepres <- function(graph){
 degreeDistRepres(g)
 
 ############################## Modularité R ####################################
+neighbors(g1,1,mode="out")$wikiid
 
 mod_R <-function(g,C,B,S){
   #R = B_{in}/B_{out}
   #C,B,S sont trois sous ensembles disjoints de V(g), g est un graphe
-  bin<-length(E(g1)[B %--% B])
-  bout<-length(E(g)[B %--% S])
+  Bid=sapply(B, id_from_wikiid,g)
+  Sid=sapply(S, id_from_wikiid,g)
+  bin<-length(E(g)[Bid %->% Bid])
+  bout<-length(E(g)[Bid %->% Sid])
   return (bin/(bin+bout))
 }
-
-################ Application modularité R à l'exemple du cours #################
-
-g<-graph.empty(directed=FALSE)
-g<-add.vertices(g,6)
-g<-add.edges(g,c(1,2,2,3,2,4,4,5,4,6,5,6))
-plot(g)
-C=c()
-B=c(4,5)
-S=c(2,6)
-mod_R(g,C,B,S)
+id_from_wikiid(16090,g)
 
 ################################# Modularité M #################################
 
@@ -56,7 +49,7 @@ mod_M<-function(g,C,B,S){
   #M = D_{in}/D_{out}
   D <- union(C,B)
   din <- length(E(g)[D %--% D])
-  dout <- length(E(g)[B %--% S])
+  dout <- length(E(g)[D %--% S])
   return(din/dout)
 }
 
@@ -81,7 +74,7 @@ update <- function(n,g,C,B,S){
   # move n in S to D
   S<- S[S!=n]
   D<- union(C,B)
-  if(all(neighbors(g,id_from_wikiid(n,wikipedia))$wikiid %in% D)){
+  if(all(neighbors(g,id_from_wikiid(n,g),mode="out")$wikiid %in% D)){
     # add n to C
     C <- union(C,n)
     
@@ -89,12 +82,12 @@ update <- function(n,g,C,B,S){
   else{
     #add n to B
     B<-union(B,n)
-    new_s=setdiff(neighbors(g,id_from_wikiid(n,wikipedia)),union(D,S))
+    new_s=setdiff(neighbors(g,id_from_wikiid(n,g),mode="out")$wikiid,union(D,S))
     if(length(new_s)>0){
       S<-union(S,new_s)
     }
     for(b in B){
-      if(all(neighbors(g,id_from_wikiid(b,wikipedia))%in% D)){
+      if(all(neighbors(g,id_from_wikiid(b,g),mode="out")$wikiid %in% D)){
         B<-B[B!=b]
         C<-union(C,b)
       }
@@ -102,6 +95,9 @@ update <- function(n,g,C,B,S){
   }
   return(list(C=C,B=B,S=S))
 } 
+
+n=S[[1]]
+neighbors(g1,id_from_wikiid(426845,g1),mode="out")$wikiid # pas de voisin
 
 compute_quality<-function(n,g,C,B,S,mod){
   # calcule la qualité d'une communité
@@ -114,12 +110,14 @@ compute_quality<-function(n,g,C,B,S,mod){
 }
 target=V(g1)[[1]]$wikiid
 mod=mod_R
+g=g1
+
 local_com <- function(target,g,mod){
   #initialisation
   if(is.igraph(g) && target %in% V(g)$wikiid){
     C<-c()
     B<-c(target)
-    S<- c(V(g)[neighbors(g,id_from_wikiid(target,wikipedia))]$wikiid)
+    S<- c(V(g)[neighbors(g,id_from_wikiid(target,g),mode="out")]$wikiid)
     Q<-0
     new_Q<-0
     while((length(S)>0) && (new_Q>=Q)){
@@ -156,17 +154,26 @@ g1<-largest_component(wikipedia)
 
 # Communauté égo-centrée avec sommet cible = 1
 
-ego<-ego_partition(V(g1)[[1]]$wikiid,g1,mod_R)
+ego<-ego_partition(V(g1)[[10]]$wikiid,g1,mod_R)
+V(g1)[[10]]$label
+ego_ids<-sapply(ego[[1]],id_from_wikiid,g1)
 
+plot.igraph(induced.subgraph(g1,ego_ids))
 
-V(g1)[[1]]$label # Homochonous
+V(g1)[[1]]$label # Homochronous
 
-neighbors(g1,1,mode="total")
+neighbors(g1,1,mode="out")
 
-neighbors(g,V(g)[[1]]$wikiid,mode="all")$wikiid
+neighbors(g1,id_from_wikiid(V(g1)[[1]]$wikiid,g),mode="out")$wikiid
 
 id_from_wikiid<-function(wikiid,g){
   return(which(V(g)$wikiid==wikiid))
 }
-id_from_wikiid(V(g)[[1]]$wikiid,g)
+
+id_from_wikiid(V(g1)[[1]]$wikiid,g)
+E(wikipedia)[1:10]
+
+
+neighbors(g1,id_from_wikiid(59603,g),mode="out")$wikiid
+
 
