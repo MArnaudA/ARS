@@ -137,8 +137,7 @@ local_com <- function(target,g,mod){
     stop("invalid arguments")
   }
 }
-target=V(g1)[[10]]$wikiid
-g=largest
+
 mod=mod_L
 ego_partition<-function(target,g,mod){
   res<-local_com(target,g,mod)
@@ -150,6 +149,8 @@ ego_partition<-function(target,g,mod){
 id_from_wikiid<-function(wikiid,g){
   return(which(V(g)$wikiid==wikiid))
 }
+
+
 
 ################################ Test ##########################################
 
@@ -168,13 +169,152 @@ egoL<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_L)
 ego_ids_R<-sapply(egoR[[1]],id_from_wikiid,g1)
 ego_ids_M<-sapply(egoM[[1]],id_from_wikiid,g1)
 ego_ids_L<-sapply(egoL[[1]],id_from_wikiid,g1)
-ego_ids_R
+
 ego_ids_M
 ego_ids_L
-
+induced.subgraph(g1,ego_ids_R)
 plot.igraph(induced.subgraph(g1,ego_ids_R))
 E(g1)
 ?delete_edges
+
+############################ Fonction eval ######################
+ego_ids_R
+gg= induced.subgraph(g1,ego_ids_R)
+V(gg)[[1]]$label
+sort(neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 2, mode = 'out' )$label)
+c(neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 1, mode = 'out' )$label)
+identical(sort(neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 2, mode = 'out' )$label), neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 2, mode = 'out' )$label)
+?neighbors
+?identical
+#sommet_a_relier()
+evaluation_test<-function(graphe_recommender, graphe_connexe_avant, sommet_relier, sommet_relier_avec_sommet_isole){
+Accuracy=0
+Accuracy_avec_sommet_isole=0
+  for (k in sommet_relier_avec_sommet_isole){
+    
+    if (identical(sort(neighbors(graphe_recommender, v = id_from_wikiid(k, graphe_recommender), mode = 'out' )$label),neighbors(graphe_connexe_avant, v = id_from_wikiid(k,graphe_connexe_avant), mode = 'out' )$label)) {
+      Accuracy_avec_sommet_isole=1+Accuracy_avec_sommet_isole
+    }
+
+    
+  }
+
+for (k in sommet_relier){
+  
+  if (identical(sort(neighbors(graphe_recommender, v = id_from_wikiid(k,graphe_recommender), mode = 'out' )$label), sort(neighbors(graphe_connexe_avant, v = id_from_wikiid(k, graphe_connexe_avant), mode = 'out' )$label))) {
+    Accuracy=1+Accuracy
+  }
+  print("Accuracy sans sommet isole :\n")
+  print(Accuracy/length(sommet_relier))
+  print("Accuracy avec sommet isole :\n")
+  print(Accuracy_avec_sommet_isole/length(sommet_relier_avec_sommet_isole))
+  
+}
+
+
+  
+  
+}
+
+########################################################### Ajout lien ###################################################
+############################# Fonction sommet candidat ##############
+ego_ids_R
+gi=induced.subgraph(g1,ego_ids_R)
+gi
+unique(unlist(vertex_attr(gi, "wikiid")))
+list(vertex_attr(gi, "wikiid"))
+list.gr
+V(gi)$wikiid
+unique(unlist(neighbors(gi, v = id_from_wikiid(1448859,gi))))
+
+list(neighbors(gi, v = id_from_wikiid(1448859,gi))$wikiid)
+
+
+### retourne les id ( et non pas les wki id) des sommets candidats
+sommet_candidat<-function(communaute, sommet_cible, borda_liste){
+  ensemble_sommet_voisin= neighbors(communaute, v = id_from_wikiid(sommet_cible, communaute))
+  ensemble_sommet_voisin
+  resultat <- setdiff(borda_liste,ensemble_sommet_voisin)
+  plot.igraph(gi, vertex.size=c, vertex.shapes= "rectangle" )
+}
+centrality_vis(gi, similarity.jaccard())
+
+?similarity.jaccard
+
+
+
+### LEs similarité doivent donner des matrices
+BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
+  l_ranking=c()
+  a=0
+  sommet_cible_id=id_from_wikiid(sommet_cible, gi)
+  for (si in similarity){
+    e=similarity(communaute,method =si)[sommet_cible_id, ] # pour avoir la similarité du sommet cible avec les autres sommets
+    a=similarity(communaute, method=si)[sommet_cible_id, ]
+    l=c()
+    for (k in e){
+      count=0
+      for (t in e){
+        if (k>t){
+          print(t)
+          count=count+1
+        }
+      }
+      l=c(l,count)
+      }
+      
+    l_ranking=c(l_ranking,list(l))
+    
+  }
+  
+  L_rank=c()
+  a=length(a)
+  for (k in 1:a){
+    L_sum=0
+    for (l in l_ranking){
+      L_sum=L_sum+ l[k]
+    }
+    L_rank=c(L_rank,L_sum)
+  }
+  
+  return(order(L_rank, decreasing = TRUE)) # renvoie la position de l'indice 
+}
+
+oo=BORDA_ER(gi, similarity =('jaccard'), sommet_candidat = resultat, sommet_cible = 1448859)
+
+
+############################################################################
+######################### Ajout Lien 
+
+ajout_lien<- function(graph_rajout, communaute, similarity, sommet_cible, nb_ajout){ ## le sommet cible est le wiki_id du sommet
+  ## nb-ajout pour le nombre de lien à rajouter 
+  
+  ### Bordas/similarite 
+  # ON recupere la liste des sommets(leur id) de la communaute classé selon leur similarite avec le sommet cible
+  Bordas=BORDA_ER(communaute, similarity, sommet_cible)
+  
+  ## Sommet candidat
+  # on recupere la liste des sommets candidats en enlevant les sommets non candidats de Bordas (mais on garde l'ordre)
+  L=sommet_candidat(communaute, sommet_cible, Bordas)
+  
+  ## ajout de lien
+  for(k in 1:nb_ajout){
+    graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(graph_rajout)$wikiid[L[k+1]], communaute)))
+  }
+  return(graph_rajout)
+  
+}
+
+gii=ajout_lien(gi, gi,similarity =('jaccard'), 1448859, 1)
+gii
+gi=induced.subgraph(g1,ego_ids_R)
+gi
+
+plot.igraph(gi)
+plot.igraph(gii)
+
+##################################################################################################################################
+
 
 V(g1)[[1]]$label # Homochronous
 
@@ -201,12 +341,14 @@ wiki_deletion<-function(graph,percentage){
   largestComp <- largest_component(graph)
   graph_edges_deleted<-delete_edges(largestComp,sample(E(largestComp),percentage*length(E(g))))
   graph_edges_deleted
-}
+}# creer dans la fonction la liste de sommet tire aleatoirement avec des conditions puis delete_edges 
 
 degree_distribution(largest_component(wikipedia))*length(V(largest_component(wikipedia)))
 
 largest<-largest_component(wikipedia)
 V(largest)[degree(largest)==max(degree(largest,mode=mode))]$label
 ?degree
+
+#sommet_a_relier()
 
 
