@@ -1,5 +1,6 @@
 ################################### Projet ARS #################################
 library(igraph)
+library(docstring)
 
 wikipedia<-read.graph("wikipedia.gml",format="gml")
 V(wikipedia)[[2]]$wikiid
@@ -66,7 +67,6 @@ mod_L<-function(g,C,B,S){
   lout <-sum(sapply(B_id,neighbors_in,g,S_id))/length(B_id)
   return(lin/lout)
 }
-sum(c(1,2,3))
 
 neighbors_in<-function(n,g,E){
   #return the numbrer of neighbor of node n in set E in graph g
@@ -100,7 +100,7 @@ update <- function(n,g,C,B,S){
   }
   return(list(C=C,B=B,S=S))
 } 
-n=1997
+
 compute_quality<-function(n,g,C,B,S,mod){
   # calcule la qualité d'une communité
   # n est un sommet de S
@@ -138,7 +138,6 @@ local_com <- function(target,g,mod){
   }
 }
 
-mod=mod_L
 ego_partition<-function(target,g,mod){
   res<-local_com(target,g,mod)
   res_not_com<-V(g)[!(wikiid %in% res)]$wikiid
@@ -146,24 +145,80 @@ ego_partition<-function(target,g,mod){
   
 }
 
-id_from_wikiid<-function(wikiid,g){
+id_from_wikiid<-function(wikiid,g=wikipedia){
   return(which(V(g)$wikiid==wikiid))
 }
 
 
+wiki_deletion<-function(graph,percentage=0.01){ 
+  #' Suppression de liens sur la composante connexe la plus grande
+  #' du graphe
+  #'
+  #' wiki_deletion prend la composante connexe la plus grande du graphe fourni 
+  #' et supprime le pourcentage d'arêtes fourni parmi cette composante
+  #' 
+  #' @param graph : Graphe auquel il faut supprimer des arêtes
+  #' @param percentage : Pourcentage de suppression d'arêtes
+  #' 
+  #' @return Le graphe avec liens supprimés et la liste de listes (sommets
+  #' ayant au moins une arête manquante,nombre d'arêtes manquantes pour le 
+  #' sommet, sommets conservés dans la composante connexe la plus grande après
+  #' suppression des arêtes)
+  
+  # Recherche de la plus grande composante connexe du graphe
+  largestComp <- largest_component(graph)
+  
+  # Suppression de liens de façon aléatoire dans cette composante connexe
+  graph_edges_deleted<-delete_edges(largestComp,sample(E(largestComp),percentage*length(E(largestComp))))
+  
+  # Récupération des sommets ayant au moins une arête retirée
+  vertices_missing_link<-V(largestComp)[degree(largestComp,mode="out")!=degree(graph_edges_deleted,mode="out")]
+  
+  # Liste des tuples sommets-liens manquants
+  number_edges_removed_list<-c()
+  for (vertex in vertices_missing_link){
+    initial_degree<-degree(largestComp)[[vertex]]
+    new_degree<-degree(graph_edges_deleted)[[vertex]]
+    vertice_num_missing_links_tuple<-c(vertex,initial_degree-new_degree)
+    
+    number_edges_removed_list<-c(number_edges_removed_list,list(vertice_num_missing_links_tuple))
+  }
+  
+  # Constitution de la liste des sommets ayant perdu un lien, mais restant dans
+  # la plus grande composante connexe. 
+  lg_comp_deleted_graph <-largest_component(graph_edges_deleted)
+  list_edges_kept <- vertices_missing_links %in% V(lg_comp_deleted_graph)
+  
+  
+  
+  return (list(graph_edges_deleted,number_edges_removed_list,list_edges_kept))
+}
 
 ################################ Test ##########################################
 
+?wiki_deletion
 
-# Plus grande composante connexe de g
 g1<-largest_component(wikipedia)
+x<-wiki_deletion(wikipedia)
+graph_edges_deleted<-x[[1]]
+vertices_missing_links<-x[[2]]
+
+clusters(graph_edges_deleted)
+length(vertices_missing_links)
+
+lg_comp_deleted_graph <-largest_component(graph_edges_deleted)
+list <- vertices_missing_links %in% V(lg_comp_deleted_graph)
+length(list)
 
 
-# Communauté égo-centrée avec sommet cible = 10
+g1=largest_component(wikipedia)
 mode="out"
 
-V(g1)[[180]]$label # Director telephone system
-egoR<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_R) # 
+
+
+
+V(g1)[[180]]$label # Art gallery problem
+egoR<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_R)
 egoM<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_M)
 egoL<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_L)
 ego_ids_R<-sapply(egoR[[1]],id_from_wikiid,g1)
@@ -172,10 +227,13 @@ ego_ids_L<-sapply(egoL[[1]],id_from_wikiid,g1)
 
 ego_ids_M
 ego_ids_L
+
+
 induced.subgraph(g1,ego_ids_R)
 plot.igraph(induced.subgraph(g1,ego_ids_R))
 E(g1)
 ?delete_edges
+
 
 ############################ Fonction eval ######################
 ego_ids_R
@@ -209,11 +267,7 @@ for (k in sommet_relier){
   print("Accuracy avec sommet isole :\n")
   print(Accuracy_avec_sommet_isole/length(sommet_relier_avec_sommet_isole))
   
-}
-
-
-  
-  
+} 
 }
 
 ########################################################### Ajout lien ###################################################
@@ -350,5 +404,7 @@ V(largest)[degree(largest)==max(degree(largest,mode=mode))]$label
 ?degree
 
 #sommet_a_relier()
+=======
+
 
 
