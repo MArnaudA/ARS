@@ -214,9 +214,6 @@ length(list)
 g1=largest_component(wikipedia)
 mode="out"
 
-
-
-
 V(g1)[[180]]$label # Art gallery problem
 egoR<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_R)
 egoM<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_M)
@@ -297,7 +294,7 @@ centrality_vis(gi, similarity.jaccard())
 
 
 
-### LEs similarité doivent donner des matrices
+### Les similarité doivent donner des matrices
 BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
   l_ranking=c()
   a=0
@@ -369,42 +366,6 @@ plot.igraph(gii)
 
 ##################################################################################################################################
 
-
-V(g1)[[1]]$label # Homochronous
-
-neighbors(g1,1,mode=mode)
-
-neighbors(g1,id_from_wikiid(V(g1)[[1]]$wikiid,wikipedia),mode=mode)$wikiid
-
-
-id_from_wikiid(V(g1)[[1]]$wikiid,g)
-E(wikipedia)[1:10]
-
-
-neighbors(g1,id_from_wikiid(59603,g),mode=mode)$wikiid
-
-train=g1
-test=delete_edges(train,sample(E(train),10))
-length(E(train))
-length(E(test))
-
-wiki_deletion<-function(graph,percentage){ 
-  
-  # Prend la composante connexe la plus grande et supprime un pourcentage d'arêtes parmi cette composante
-  
-  largestComp <- largest_component(graph)
-  graph_edges_deleted<-delete_edges(largestComp,sample(E(largestComp),percentage*length(E(g))))
-  graph_edges_deleted
-}# creer dans la fonction la liste de sommet tire aleatoirement avec des conditions puis delete_edges 
-
-degree_distribution(largest_component(wikipedia))*length(V(largest_component(wikipedia)))
-
-largest<-largest_component(wikipedia)
-V(largest)[degree(largest)==max(degree(largest,mode=mode))]$label
-?degree
-
-#sommet_a_relier()
-=======
 
 
 
