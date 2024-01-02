@@ -1,6 +1,7 @@
 ################################### Projet ARS #################################
 library(igraph)
 library(docstring)
+library(purrr) # pour la fonction map
 
 wikipedia<-read.graph("wikipedia.gml",format="gml")
 V(wikipedia)[[2]]$wikiid
@@ -28,6 +29,7 @@ degreeDistRepres <- function(graph){
 }
 
 degreeDistRepres(wikipedia)
+
 
 ############################## Modularité R ####################################
 
@@ -101,34 +103,41 @@ update <- function(n,g,C,B,S){
   return(list(C=C,B=B,S=S))
 } 
 
-compute_quality<-function(n,g,C,B,S,mod){
-  # calcule la qualité d'une communité
-  # n est un sommet de S
-  res <- update(n,g,C,B,S)
-  C<-res$C
-  B<-res$B
-  S<-res$S
-  return(mod(g,C,B,S))
-}
+# compute_quality<-function(n,g,C,B,S,mod){
+#   # calcule la qualité d'une communité
+#   # n est un sommet de S
+#   res <- update(n,g,C,B,S)
+#   C<-res$C
+#   B<-res$B
+#   S<-res$S
+#   return(mod(g,C,B,S)) 
+# }
 
-local_com <- function(target,g,mod){
+target = v[[1]]
+g = largest_component(wikipedia)
+mod_vector = c(mod_R,mod_M,mod_L)
+
+local_com <- function(target,g,mod_vector){
   #initialisation
   if(is.igraph(g) && target %in% V(g)$wikiid){
     C<-c()
     B<-c(target)
     S<- c(V(g)[neighbors(g,id_from_wikiid(target,g),mode=mode)]$wikiid)
     Q<-0
-    new_Q<-0
-    while((length(S)>0) && (new_Q>=Q)){
-      QS<-sapply(S,compute_quality,g,C,B,S,mod)
-      new_Q<-max(QS)
-      if(new_Q>=Q){
-        s_node<-S[which.max(QS)]
+    new_Q<-list(0,0)
+    while((length(S)>0) && (new_Q[[2]]>=Q)){
+      new_Q<-Q_generator(g,C,B,S,mod_vector)
+      
+      # QS<-sapply(S,compute_quality,g,C,B,S,mod)
+      # new_Q<-max(QS)
+      if(new_Q[[2]]>=Q){
+        s_node<- new_Q[[1]]
         res<-update(s_node,g,C,B,S)
         C<-res$C
         B<-res$B
         S<-res$S
-        Q<-new_Q
+        Q<-new_Q[[2]]
+        new_Q<-Q_generator(g,C,B,S,mod_vector)
       }
     }
     return(union(C,B))
@@ -137,9 +146,11 @@ local_com <- function(target,g,mod){
     stop("invalid arguments")
   }
 }
+target = v[[1]]
+g = graph_edges_deleted
 
-ego_partition<-function(target,g,mod){
-  res<-local_com(target,g,mod)
+ego_partition<-function(target,g,mod_vector){
+  res<-local_com(target,g,mod_vector)
   res_not_com<-V(g)[!(wikiid %in% res)]$wikiid
   return(list(res,res_not_com))
   
@@ -148,7 +159,6 @@ ego_partition<-function(target,g,mod){
 id_from_wikiid<-function(wikiid,g=wikipedia){
   return(which(V(g)$wikiid==wikiid))
 }
-
 
 wiki_deletion<-function(graph,percentage=0.01){ 
   #' Suppression de liens sur la composante connexe la plus grande
@@ -172,13 +182,13 @@ wiki_deletion<-function(graph,percentage=0.01){
   graph_edges_deleted<-delete_edges(largestComp,sample(E(largestComp),percentage*length(E(largestComp))))
   
   # Récupération des sommets ayant au moins une arête retirée
-  vertices_missing_link<-V(largestComp)[degree(largestComp,mode="out")!=degree(graph_edges_deleted,mode="out")]
+  vertices_missing_link<-V(largestComp)$wikiid[degree(largestComp,mode="out")!=degree(graph_edges_deleted,mode="out")]
   
   # Liste des tuples sommets-liens manquants
   number_edges_removed_list<-c()
   for (vertex in vertices_missing_link){
-    initial_degree<-degree(largestComp)[[vertex]]
-    new_degree<-degree(graph_edges_deleted)[[vertex]]
+    initial_degree<-degree(largestComp)[[id_from_wikiid(vertex,graph_edges_deleted)]]
+    new_degree<-degree(graph_edges_deleted)[[id_from_wikiid(vertex,graph_edges_deleted)]]
     vertice_num_missing_links_tuple<-c(vertex,initial_degree-new_degree)
     
     number_edges_removed_list<-c(number_edges_removed_list,list(vertice_num_missing_links_tuple))
@@ -187,185 +197,141 @@ wiki_deletion<-function(graph,percentage=0.01){
   # Constitution de la liste des sommets ayant perdu un lien, mais restant dans
   # la plus grande composante connexe. 
   lg_comp_deleted_graph <-largest_component(graph_edges_deleted)
-  list_edges_kept <- vertices_missing_links %in% V(lg_comp_deleted_graph)
   
-  
+  list_edges_kept <- vertices_missing_link[vertices_missing_link %in% V(lg_comp_deleted_graph)$wikiid]
   
   return (list(graph_edges_deleted,number_edges_removed_list,list_edges_kept))
 }
 
-################################ Test ##########################################
-
-?wiki_deletion
-
-g1<-largest_component(wikipedia)
-x<-wiki_deletion(wikipedia)
-graph_edges_deleted<-x[[1]]
-vertices_missing_links<-x[[2]]
-
-clusters(graph_edges_deleted)
-length(vertices_missing_links)
-
-lg_comp_deleted_graph <-largest_component(graph_edges_deleted)
-list <- vertices_missing_links %in% V(lg_comp_deleted_graph)
-length(list)
 
 
-g1=largest_component(wikipedia)
-mode="out"
 
-V(g1)[[180]]$label # Art gallery problem
-egoR<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_R)
-egoM<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_M)
-egoL<-ego_partition(V(g1)[[180]]$wikiid,g1,mod_L)
-ego_ids_R<-sapply(egoR[[1]],id_from_wikiid,g1)
-ego_ids_M<-sapply(egoM[[1]],id_from_wikiid,g1)
-ego_ids_L<-sapply(egoL[[1]],id_from_wikiid,g1)
-
-ego_ids_M
-ego_ids_L
+########################## Algorithme de vote de Borda #########################
 
 
-induced.subgraph(g1,ego_ids_R)
-plot.igraph(induced.subgraph(g1,ego_ids_R))
-E(g1)
-?delete_edges
-
-
-############################ Fonction eval ######################
-ego_ids_R
-gg= induced.subgraph(g1,ego_ids_R)
-V(gg)[[1]]$label
-sort(neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 2, mode = 'out' )$label)
-c(neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 1, mode = 'out' )$label)
-identical(sort(neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 2, mode = 'out' )$label), neighbors(graph = induced.subgraph(g1,ego_ids_R), v = 2, mode = 'out' )$label)
-?neighbors
-?identical
-#sommet_a_relier()
-evaluation_test<-function(graphe_recommender, graphe_connexe_avant, sommet_relier, sommet_relier_avec_sommet_isole){
-Accuracy=0
-Accuracy_avec_sommet_isole=0
-  for (k in sommet_relier_avec_sommet_isole){
-    
-    if (identical(sort(neighbors(graphe_recommender, v = id_from_wikiid(k, graphe_recommender), mode = 'out' )$label),neighbors(graphe_connexe_avant, v = id_from_wikiid(k,graphe_connexe_avant), mode = 'out' )$label)) {
-      Accuracy_avec_sommet_isole=1+Accuracy_avec_sommet_isole
-    }
-
-    
-  }
-
-for (k in sommet_relier){
+Borda<-function(matrix_Q_values){
+  # Liste de tous les classements
+  listRankings<-c()
   
-  if (identical(sort(neighbors(graphe_recommender, v = id_from_wikiid(k,graphe_recommender), mode = 'out' )$label), sort(neighbors(graphe_connexe_avant, v = id_from_wikiid(k, graphe_connexe_avant), mode = 'out' )$label))) {
-    Accuracy=1+Accuracy
-  }
-  print("Accuracy sans sommet isole :\n")
-  print(Accuracy/length(sommet_relier))
-  print("Accuracy avec sommet isole :\n")
-  print(Accuracy_avec_sommet_isole/length(sommet_relier_avec_sommet_isole))
-  
-} 
-}
-
-########################################################### Ajout lien ###################################################
-############################# Fonction sommet candidat ##############
-ego_ids_R
-gi=induced.subgraph(g1,ego_ids_R)
-gi
-unique(unlist(vertex_attr(gi, "wikiid")))
-list(vertex_attr(gi, "wikiid"))
-list.gr
-V(gi)$wikiid
-unique(unlist(neighbors(gi, v = id_from_wikiid(1448859,gi))))
-
-list(neighbors(gi, v = id_from_wikiid(1448859,gi))$wikiid)
-
-
-### retourne les id ( et non pas les wki id) des sommets candidats
-sommet_candidat<-function(communaute, sommet_cible, borda_liste){
-  ensemble_sommet_voisin= neighbors(communaute, v = id_from_wikiid(sommet_cible, communaute))
-  ensemble_sommet_voisin
-  resultat <- setdiff(borda_liste,ensemble_sommet_voisin)
-  plot.igraph(gi, vertex.size=c, vertex.shapes= "rectangle" )
-}
-centrality_vis(gi, similarity.jaccard())
-
-?similarity.jaccard
-
-
-
-### Les similarité doivent donner des matrices
-BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
-  l_ranking=c()
-  a=0
-  sommet_cible_id=id_from_wikiid(sommet_cible, gi)
-  for (si in similarity){
-    e=similarity(communaute,method =si)[sommet_cible_id, ] # pour avoir la similarité du sommet cible avec les autres sommets
-    a=similarity(communaute, method=si)[sommet_cible_id, ]
-    l=c()
-    for (k in e){
+  # Comptage de Borda : On compte le nombre de sommets dont la modularité est 
+  # inférieure au sommet considéré
+  for(modularity in 1:length(matrix_Q_values[,1])){
+    
+    # liste de classement d'une modularité
+    ranking_inside_modularity <-c()
+    
+    for(vertice in 1:length(matrix_Q_values[1,])){ # Pour chaque sommet
       count=0
-      for (t in e){
-        if (k>t){
-          print(t)
+      for(verticebis in 1:length(matrix_Q_values[1,])){ 
+        if(matrix_Q_values[modularity,verticebis]<matrix_Q_values[modularity,vertice]){
           count=count+1
         }
       }
-      l=c(l,count)
-      }
-      
-    l_ranking=c(l_ranking,list(l))
-    
-  }
-  
-  L_rank=c()
-  a=length(a)
-  for (k in 1:a){
-    L_sum=0
-    for (l in l_ranking){
-      L_sum=L_sum+ l[k]
+      ranking_inside_modularity<-c(ranking_inside_modularity,count)
     }
-    L_rank=c(L_rank,L_sum)
+    listRankings<-c(listRankings,list(ranking_inside_modularity))
   }
   
-  return(order(L_rank, decreasing = TRUE)) # renvoie la position de l'indice 
-}
-
-oo=BORDA_ER(gi, similarity =('jaccard'), sommet_candidat = resultat, sommet_cible = 1448859)
-
-
-############################################################################
-######################### Ajout Lien 
-
-ajout_lien<- function(graph_rajout, communaute, similarity, sommet_cible, nb_ajout){ ## le sommet cible est le wiki_id du sommet
-  ## nb-ajout pour le nombre de lien à rajouter 
+  # À ce point, listRankings contient pour chaque fonction de modularité, 
+  # pour chaque sommet, le nombre de sommets ayant une modularité inférieure au 
+  # premier sommet.
+  # Par exemple, listRankings[[1]] contient le classement des sommets pour la
+  # première modularité
   
-  ### Bordas/similarite 
-  # ON recupere la liste des sommets(leur id) de la communaute classé selon leur similarite avec le sommet cible
-  Bordas=BORDA_ER(communaute, similarity, sommet_cible)
-  
-  ## Sommet candidat
-  # on recupere la liste des sommets candidats en enlevant les sommets non candidats de Bordas (mais on garde l'ordre)
-  L=sommet_candidat(communaute, sommet_cible, Bordas)
-  
-  ## ajout de lien
-  for(k in 1:nb_ajout){
-    graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(graph_rajout)$wikiid[L[k+1]], communaute)))
+  bordaRanking=c()
+  for(i in 1:length(listRankings[[1]])){ # Le nombre de sommets
+    sum=0
+    for(j in 1:length(listRankings)){# Nombre de modularités
+      sum=sum+listRankings[[j]][i]
+    }
+    bordaRanking=c(bordaRanking,sum)
   }
-  return(graph_rajout)
-  
+  return(rank(bordaRanking,ties.method = 'random')) # l'indice du maximum de la liste correspond au 
+  # meilleur sommet
 }
 
-gii=ajout_lien(gi, gi,similarity =('jaccard'), 1448859, 1)
-gii
-gi=induced.subgraph(g1,ego_ids_R)
-gi
 
-plot.igraph(gi)
-plot.igraph(gii)
-
-##################################################################################################################################
+####################### Fonction de modularité moyenne #########################
 
 
+Q_generator <- function(g, C, B, S, mod_vector) {
+  
+  #' Fonction de modularité principale.
+  #' 
+  #' @param g : Graphe.
+  #' @param C : Vecteur d'indices des sommets dans le coeur de communauté.
+  #' @param B : Vecteur d'indices des sommets dans le bord de communauté.
+  #' @param S : Vecteur d'indices des sommets dans le shell de communauté.
+  #' @param mod_vector : Liste de modularités.
+  #' 
+  #' @return Le couple (sommet_optimal,Q(sommet_optimal)).
+  
+  n <- length(mod_vector)
+  p <- length(S)
+  
+  # Valeur de chaque sommet
+  # pour chaque modularité
+  # plus une ligne pour les
+  # indices (ou plutôt wikiid).
+  Q_values <- matrix(rep(0,n*p),nrow=n)
+  
+  for (j in 1:p){
+    
+    # Génération de la communauté hypothétique
+    # (si j était dans la communauté)
+    res <- update(S[[j]],g,C,B,S)
+    
+    for (i in 1:n)
+    {Q_values[i,j] <- mod_vector[[i]](g, res$C, res$B, res$S)}
+  }
+  
+  # Classement par modularité
 
+  vertices_ranking <- Borda(Q_values)
+  best_vertice_index <-which.max(vertices_ranking)
+  Q_average = mean(Q_values[,best_vertice_index])
+  
+  # Renvoie id sommet à ajouter et la qualité associée.
+  return(list(S[[best_vertice_index]],Q_average))
+}
 
+################################ Test ##########################################
+?Q_generator
+?wiki_deletion
+
+# Définition vecteur de modularité
+mod_vector = c(mod_R,mod_M,mod_L)
+
+# Test wiki_deletion 
+g1<-largest_component(wikipedia)
+x<-wiki_deletion(wikipedia)
+
+# Affectation du résultat de wiki deletion
+graph_edges_deleted<-x[[1]]
+vertices_missing_links<-x[[2]]
+list_edges_kept<-x[[3]]
+
+length(vertices_missing_links) # 755
+length(list_edges_kept) # 702
+
+vertices_missing_links[[1]][[1]] %in% list_edges_kept # TRUE : v appartient a la composante connexe la 
+                            # plus grande après suppression des arêtes
+v <- vertices_missing_links[[1]]
+
+# test de ego partition
+
+com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]]
+com
+
+com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
+
+g1 <-induced.subgraph(graph_edges_deleted,com_id)
+
+plot.igraph(g1)
+
+id_from_wikiid(v[[1]],graph_edges_deleted)
+V(graph_edges_deleted)[[90]]$label # Isopropyl nitrate
+
+for(v in vertices_missing_links){
+  print(ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]])
+}
