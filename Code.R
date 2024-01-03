@@ -297,6 +297,48 @@ Q_generator <- function(g, C, B, S, mod_vector) {
 
 ########################## Recommendation de lien #################################
 ### LEs similarité doivent donner des matrices
+####################### Similarite katz#################################################
+# ENTREES: 
+# g: le graphe
+# order: ordre maximal. Tronqué au-delà.
+# beta: paramètre d'horizon
+# SORTIE: matrice de similarité
+# (avec coeffs diagonaux à zéro)
+katz_similarity <- function (g, order, beta){
+  
+  l <- vcount(g)
+  
+  search_matrix <- matrix(1:l, nrow = l, ncol = l)
+  
+  # Puissance k de la matrice d'adjacence.
+  adj_M_k <- as_adjacency_matrix(g)
+  
+  search_dgcmatrix <- adj_M_k
+  
+  for (k in 2:order){
+    
+    adj_M_k <- adj_M_k%*%adj_M_k
+    
+    search_dgcmatrix <- search_dgcmatrix + (beta^k)*adj_M_k
+    
+  }
+  
+  for (i in 1:l){
+    
+    for (j in 1:l){
+      
+      if((i!=j)&(!are.connected(g,i,j))){
+        search_matrix[i,j] <- search_dgcmatrix[i,j]
+      }else{# Ignore les cycles
+        search_matrix[i,j] <- 0
+        
+      }
+    }
+  }
+  
+  return(search_matrix)
+  
+}
 
 ### retourne les id ( et non pas les wki id) des sommets candidats
 sommet_candidat<-function(communaute, sommet_cible, borda_liste){
@@ -319,8 +361,13 @@ BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
   a=0
   sommet_cible_id=id_from_wikiid(sommet_cible, communaute)
   for (si in similarity){
+    if(si=="katz"){
+      e= katz_similarity(communaute,order = 3,beta = 0.01)[sommet_cible_id, ]
+      a=e
+    }
+    else{
     e=similarity(communaute,method =si)[sommet_cible_id, ] # pour avoir la similarité du sommet cible avec les autres sommets
-    a=similarity(communaute, method=si)[sommet_cible_id, ]
+    a=e}
     l=c()
     for (k in e){
       count=0
@@ -349,11 +396,9 @@ BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
   return(order(L_rank, decreasing = TRUE)) # renvoie la position de l'indice 
 }
 
-#oo=BORDA_ER(gi, similarity =('jaccard'), sommet_candidat = resultat, sommet_cible = 1448859)
 
 
-
-ajout_lien<- function(graph_rajout, communaute, similarity, sommet_cible, nb_ajout){ ## le sommet cible est le wiki_id du sommet
+ajout_lien<- function(graph_rajout, communaute, similarities, sommet_cible, nb_ajout){ ## le sommet cible est le wiki_id du sommet
   ## nb-ajout pour le nombre de lien à rajouter 
   
   ### Bordas/similarite 
@@ -374,14 +419,7 @@ ajout_lien<- function(graph_rajout, communaute, similarity, sommet_cible, nb_ajo
   return(list(graph_rajout, commu_à_2_sommet))
   
 }
-L=c()
-5!=0
-!(length(L)!=0)
-gp=add_edges(graph_edges_deleted, c(1,2))
-gp
-resume(gp)
-resume(graph_edges_deleted)
-?add.edges
+
 
 
 
@@ -411,24 +449,27 @@ v <- vertices_missing_links[[1]]
 v[1]
 # test de ego partition
 
-com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]]
+com <- ego_partition(v[1],graph_edges_deleted,mod_vector)[[1]]
 com
 
 com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
 
+katz_similarity(g = g1, order = 3,beta = 0.01)
 g1 <-induced.subgraph(graph_edges_deleted,com_id)
 g1
 plot.igraph(g1)
 V(g1)
-graph_edges_deleted_add=ajout_lien(graph_rajout = graph_edges_deleted, communaute = g1, similarity =('jaccard'),sommet_cible = v[[1]], nb_ajout = v[2])
-g2=ajout_lien(graph_rajout = g1, communaute = g1, similarity =('jaccard'),sommet_cible = v[[1]], nb_ajout = v[2])
-plot.igraph(g2)
+similarities=c("jaccard","invlogweighted","katz")
+graph_edges_deleted_add=ajout_lien(graph_rajout = graph_edges_deleted, communaute = g1, similarity =similarities,sommet_cible = v[[1]], nb_ajout = v[2])
+g2=ajout_lien(graph_rajout = g1, communaute = g1, similarity =similarities,sommet_cible = v[[1]], nb_ajout = v[2])
+g2[1]
+plot.igraph(g2[[1]])
 resume(graph_edges_deleted_add)
 
 neighbors(graph_edges_deleted_add, v = id_from_wikiid(v[1], graph_edges_deleted_add),mode="out")$label
 plot.igraph(g1_add)
 id_from_wikiid(v[[1]],graph_edges_deleted)
-V(graph_edges_deleted)[[90]]$label # Isopropyl nitrate
+V(graph_edges_deleted)[[52]]$label # Isopropyl nitrate
 
 for(v in vertices_missing_links){
   print(ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]])
@@ -458,7 +499,7 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
     # on regarde 
     print(gv)
     #ajout lien
-    resultat= ajout_lien(graph_rajout = graph_edges_deleted, communaute = gv, similarity =('jaccard'),sommet_cible = v[[1]], nb_ajout = v[[2]])
+    resultat= ajout_lien(graph_rajout = graph_edges_deleted, communaute = gv, similarity =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
     graph_edges_deleted=resultat[[1]]
     if(resultat[[2]]==1){
       commu_à_2_sommets=commu_à_2_sommets+1
