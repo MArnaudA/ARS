@@ -361,7 +361,6 @@ BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
   a=0
   sommet_cible_id=id_from_wikiid(sommet_cible, communaute)
   for (si in similarity){
-    print(si)
     if(si=="katz"){
       e= katz_similarity(communaute,order = 3,beta = 0.01)[sommet_cible_id, ]
       a=e
@@ -411,7 +410,7 @@ ajout_lien<- function(graph_rajout, communaute, similarities, sommet_cible, nb_a
   # on recupere la liste des sommets candidats en enlevant les sommets non candidats de Bordas (mais on garde l'ordre)
   L=sommet_candidat(communaute, sommet_cible, Bordas)
   ## ajout de lien
-  if(length(L)!=0){
+  if(length(L)!=1){
   for(k in 1:nb_ajout){
     graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(communaute)$wikiid[L[k+1]], graph_rajout)))
   }}
@@ -526,9 +525,9 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
     
   }
   print("Accuracy sans sommet isole :\n")
-  print(Accuracy/length(sommet_relier))
+  print(Accuracy/length(list_edges_kept))
   print("Accuracy avec sommet isole :\n")
-  print(Accuracy/length(sommet_relier_avec_sommet_isole))
+  print(Accuracy/length(vertices_missing_links) )
 }
 
 
