@@ -113,9 +113,9 @@ update <- function(n,g,C,B,S){
 #   return(mod(g,C,B,S)) 
 # }
 
-target = v[[1]]
-g = largest_component(wikipedia)
-mod_vector = c(mod_R,mod_M,mod_L)
+#target = v[[1]]
+#g = largest_component(wikipedia)
+#mod_vector = c(mod_R,mod_M,mod_L)
 
 local_com <- function(target,g,mod_vector){
   #initialisation
@@ -146,8 +146,8 @@ local_com <- function(target,g,mod_vector){
     stop("invalid arguments")
   }
 }
-target = v[[1]]
-g = graph_edges_deleted
+#target = v[[1]]
+#g = graph_edges_deleted
 
 ego_partition<-function(target,g,mod_vector){
   res<-local_com(target,g,mod_vector)
@@ -160,7 +160,7 @@ id_from_wikiid<-function(wikiid,g=wikipedia){
   return(which(V(g)$wikiid==wikiid))
 }
 
-wiki_deletion<-function(graph,percentage=0.01){ 
+wiki_deletion<-function(graph,percentage){ 
   #' Suppression de liens sur la composante connexe la plus grande
   #' du graphe
   #'
@@ -295,6 +295,96 @@ Q_generator <- function(g, C, B, S, mod_vector) {
   return(list(S[[best_vertice_index]],Q_average))
 }
 
+########################## Recommendation de lien #################################
+### LEs similarité doivent donner des matrices
+
+### retourne les id ( et non pas les wki id) des sommets candidats
+sommet_candidat<-function(communaute, sommet_cible, borda_liste){
+  
+  #' Fonction permettant de retirer les sommets non candidats de la liste issus de de la fonction Bordas_similarité
+  #' 
+  #' @param communaute : la communauté ego centre.
+  #' @param  sommet_cible: le wikiid du sommet cible
+  #' @param borda_liste: Liste des sommets de la communaute trie selon leur similarité avec le sommet cible avec la méthode Bordas.
+  #
+  #' 
+  #' @return La liste des sommets candidats trie selon leur similarité avec le sommet cible avec la méthode Bordas.
+  ensemble_sommet_voisin= neighbors(communaute, v = id_from_wikiid(sommet_cible, communaute))
+  resultat <- setdiff(borda_liste,ensemble_sommet_voisin)
+  return (resultat)
+}
+
+BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
+  l_ranking=c()
+  a=0
+  sommet_cible_id=id_from_wikiid(sommet_cible, communaute)
+  for (si in similarity){
+    e=similarity(communaute,method =si)[sommet_cible_id, ] # pour avoir la similarité du sommet cible avec les autres sommets
+    a=similarity(communaute, method=si)[sommet_cible_id, ]
+    l=c()
+    for (k in e){
+      count=0
+      for (t in e){
+        if (k>t){
+          count=count+1
+        }
+      }
+      l=c(l,count)
+    }
+    
+    l_ranking=c(l_ranking,list(l))
+    
+  }
+  
+  L_rank=c()
+  a=length(a)
+  for (k in 1:a){
+    L_sum=0
+    for (l in l_ranking){
+      L_sum=L_sum+ l[k]
+    }
+    L_rank=c(L_rank,L_sum)
+  }
+  
+  return(order(L_rank, decreasing = TRUE)) # renvoie la position de l'indice 
+}
+
+#oo=BORDA_ER(gi, similarity =('jaccard'), sommet_candidat = resultat, sommet_cible = 1448859)
+
+
+
+ajout_lien<- function(graph_rajout, communaute, similarity, sommet_cible, nb_ajout){ ## le sommet cible est le wiki_id du sommet
+  ## nb-ajout pour le nombre de lien à rajouter 
+  
+  ### Bordas/similarite 
+  # ON recupere la liste des sommets(leur id) de la communaute classé selon leur similarite avec le sommet cible
+  Bordas=BORDA_ER(communaute, similarity, sommet_cible)
+  commu_à_2_sommet=0
+  ## Sommet candidat
+  # on recupere la liste des sommets candidats en enlevant les sommets non candidats de Bordas (mais on garde l'ordre)
+  L=sommet_candidat(communaute, sommet_cible, Bordas)
+  ## ajout de lien
+  if(!(length(L)!=0)){
+  for(k in 1:nb_ajout){
+    graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(communaute)$wikiid[L[k+1]], graph_rajout)))
+  }}
+  else{
+    commu_à_2_sommet=1
+  }
+  return(list(graph_rajout, commu_à_2_sommet))
+  
+}
+L=c()
+5!=0
+!(length(L)!=0)
+gp=add_edges(graph_edges_deleted, c(1,2))
+gp
+resume(gp)
+resume(graph_edges_deleted)
+?add.edges
+
+
+
 ################################ Test ##########################################
 ?Q_generator
 ?wiki_deletion
@@ -303,21 +393,22 @@ Q_generator <- function(g, C, B, S, mod_vector) {
 mod_vector = c(mod_R,mod_M,mod_L)
 
 # Test wiki_deletion 
-g1<-largest_component(wikipedia)
-x<-wiki_deletion(wikipedia)
+x<-wiki_deletion(wikipedia, 0.01)
 
 # Affectation du résultat de wiki deletion
 graph_edges_deleted<-x[[1]]
+graph_edges_deleted
 vertices_missing_links<-x[[2]]
 list_edges_kept<-x[[3]]
-
+graph_edges_deleted
+list_edges_kept
 length(vertices_missing_links) # 755
 length(list_edges_kept) # 702
 
 vertices_missing_links[[1]][[1]] %in% list_edges_kept # TRUE : v appartient a la composante connexe la 
                             # plus grande après suppression des arêtes
 v <- vertices_missing_links[[1]]
-
+v[1]
 # test de ego partition
 
 com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]]
@@ -326,12 +417,77 @@ com
 com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
 
 g1 <-induced.subgraph(graph_edges_deleted,com_id)
-
+g1
 plot.igraph(g1)
+V(g1)
+graph_edges_deleted_add=ajout_lien(graph_rajout = graph_edges_deleted, communaute = g1, similarity =('jaccard'),sommet_cible = v[[1]], nb_ajout = v[2])
+g2=ajout_lien(graph_rajout = g1, communaute = g1, similarity =('jaccard'),sommet_cible = v[[1]], nb_ajout = v[2])
+plot.igraph(g2)
+resume(graph_edges_deleted_add)
 
+neighbors(graph_edges_deleted_add, v = id_from_wikiid(v[1], graph_edges_deleted_add),mode="out")$label
+plot.igraph(g1_add)
 id_from_wikiid(v[[1]],graph_edges_deleted)
 V(graph_edges_deleted)[[90]]$label # Isopropyl nitrate
 
 for(v in vertices_missing_links){
   print(ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]])
 }
+
+################### Fonction Finale #########################################################
+recommendation_de_lien_mesure=function(wikipedia, percentage){
+  # Test wiki_deletion 
+  largestComp <- largest_component(wikipedia)
+  x<-wiki_deletion(wikipedia, percentage)
+  # Affectation du résultat de wiki deletion
+  graph_edges_deleted<-x[[1]]
+  vertices_missing_links<-x[[2]]
+  list_edges_kept<-x[[3]]
+  #compte les sommet ayant une communaute de 2
+  commu_à_2_sommets=0
+  # on ajoute les lien au sommets présent dans la composante complexe la plus grande de x
+  for (k in 1:length(vertices_missing_links)){
+    print(k)
+  if (vertices_missing_links[[k]][[1]] %in% list_edges_kept){
+    v <- vertices_missing_links[[k]] #Sommet cible
+    print(v)
+    # communaute ego-centre
+    com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]]
+    com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
+    gv <-induced.subgraph(graph_edges_deleted,com_id)# communaute ego-centre
+    # on regarde 
+    print(gv)
+    #ajout lien
+    resultat= ajout_lien(graph_rajout = graph_edges_deleted, communaute = gv, similarity =('jaccard'),sommet_cible = v[[1]], nb_ajout = v[[2]])
+    graph_edges_deleted=resultat[[1]]
+    if(resultat[[2]]==1){
+      commu_à_2_sommets=commu_à_2_sommets+1
+    }
+  }
+    
+    
+  }
+  print("commu_à_2_sommets=")
+  print(commu_à_2_sommets)
+  # Evaluation
+  
+  Accuracy=0
+  for (k in 1:length(vertices_missing_links)){
+    if (vertices_missing_links[[k]][[1]] %in% list_edges_kept){
+      v <- vertices_missing_links[[k]][1]
+      if (identical(sort(neighbors(graph_edges_deleted, v = id_from_wikiid(v, graph_edges_deleted), mode = 'out' )$label),neighbors(largestComp, v = id_from_wikiid(v,largestComp), mode = 'out' )$label)) {
+        Accuracy=1+Accuracy
+        }
+    }
+    
+    
+  }
+  print("Accuracy sans sommet isole :\n")
+  print(Accuracy/length(sommet_relier))
+  print("Accuracy avec sommet isole :\n")
+  print(Accuracy/length(sommet_relier_avec_sommet_isole))
+}
+
+
+recommendation_de_lien_mesure(wikipedia, 0.01)
+
