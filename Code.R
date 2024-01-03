@@ -361,13 +361,15 @@ BORDA_ER=function(communaute, similarity, sommet_cible, sommet_candidat){
   a=0
   sommet_cible_id=id_from_wikiid(sommet_cible, communaute)
   for (si in similarity){
+    print(si)
     if(si=="katz"){
       e= katz_similarity(communaute,order = 3,beta = 0.01)[sommet_cible_id, ]
       a=e
     }
     else{
     e=similarity(communaute,method =si)[sommet_cible_id, ] # pour avoir la similarité du sommet cible avec les autres sommets
-    a=e}
+    a=e
+    }
     l=c()
     for (k in e){
       count=0
@@ -403,13 +405,13 @@ ajout_lien<- function(graph_rajout, communaute, similarities, sommet_cible, nb_a
   
   ### Bordas/similarite 
   # ON recupere la liste des sommets(leur id) de la communaute classé selon leur similarite avec le sommet cible
-  Bordas=BORDA_ER(communaute, similarity, sommet_cible)
+  Bordas=BORDA_ER(communaute, similarities, sommet_cible)
   commu_à_2_sommet=0
   ## Sommet candidat
   # on recupere la liste des sommets candidats en enlevant les sommets non candidats de Bordas (mais on garde l'ordre)
   L=sommet_candidat(communaute, sommet_cible, Bordas)
   ## ajout de lien
-  if(!(length(L)!=0)){
+  if(length(L)!=0){
   for(k in 1:nb_ajout){
     graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(communaute)$wikiid[L[k+1]], graph_rajout)))
   }}
@@ -499,7 +501,7 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
     # on regarde 
     print(gv)
     #ajout lien
-    resultat= ajout_lien(graph_rajout = graph_edges_deleted, communaute = gv, similarity =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
+    resultat= ajout_lien(graph_rajout = graph_edges_deleted, communaute = gv, similarities =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
     graph_edges_deleted=resultat[[1]]
     if(resultat[[2]]==1){
       commu_à_2_sommets=commu_à_2_sommets+1
