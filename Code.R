@@ -410,18 +410,17 @@ ajout_lien<- function(graph_rajout, communaute, similarities, sommet_cible, nb_a
   # on recupere la liste des sommets candidats en enlevant les sommets non candidats de Bordas (mais on garde l'ordre)
   L=sommet_candidat(communaute, sommet_cible, Bordas)
   ## ajout de lien
-  if(length(L)!=1){
-  for(k in 1:nb_ajout){
+  if(length(L)!=1 ){
+  for(k in 1:length(L)){
+    if (k+1<=nb_ajout){
     graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(communaute)$wikiid[L[k+1]], graph_rajout)))
-  }}
+  }}}
   else{
     commu_à_2_sommet=1
   }
   return(list(graph_rajout, commu_à_2_sommet))
   
 }
-
-
 
 
 ################################ Test ##########################################
@@ -450,7 +449,7 @@ v <- vertices_missing_links[[1]]
 v[1]
 # test de ego partition
 
-com <- ego_partition(v[1],graph_edges_deleted,mod_vector)[[1]]
+com <- ego_partition(2695433,graph_edges_deleted,mod_vector)[[1]]
 com
 
 com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
@@ -532,4 +531,4 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
 
 
 recommendation_de_lien_mesure(wikipedia, 0.01)
-
+## regarfr errrueur à cause du nb d'ajout 
