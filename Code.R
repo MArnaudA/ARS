@@ -126,6 +126,7 @@ local_com <- function(target,g,mod_vector){
     Q<-0
     new_Q<-list(0,0)
     while((length(S)>0) && (new_Q[[2]]>=Q)){
+      Q<-new_Q[[2]]
       new_Q<-Q_generator(g,C,B,S,mod_vector)
       
       # QS<-sapply(S,compute_quality,g,C,B,S,mod)
@@ -136,8 +137,6 @@ local_com <- function(target,g,mod_vector){
         C<-res$C
         B<-res$B
         S<-res$S
-        Q<-new_Q[[2]]
-        new_Q<-Q_generator(g,C,B,S,mod_vector)
       }
     }
     return(union(C,B))
@@ -145,15 +144,6 @@ local_com <- function(target,g,mod_vector){
   else{
     stop("invalid arguments")
   }
-}
-#target = v[[1]]
-#g = graph_edges_deleted
-
-ego_partition<-function(target,g,mod_vector){
-  res<-local_com(target,g,mod_vector)
-  res_not_com<-V(g)[!(wikiid %in% res)]$wikiid
-  return(list(res,res_not_com))
-  
 }
 
 id_from_wikiid<-function(wikiid,g=wikipedia){
@@ -409,11 +399,12 @@ ajout_lien<- function(graph_rajout, communaute, similarities, sommet_cible, nb_a
   ## Sommet candidat
   # on recupere la liste des sommets candidats en enlevant les sommets non candidats de Bordas (mais on garde l'ordre)
   L=sommet_candidat(communaute, sommet_cible, Bordas)
+  
   ## ajout de lien
   if(length(L)!=1 ){
-  for(k in 1:length(L)){
-    if (k+1<=nb_ajout){
-    graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(communaute)$wikiid[L[k+1]], graph_rajout)))
+  for(k in 2:length(L)){
+    if (k-1<=nb_ajout){
+    graph_rajout <- add_edges(graph_rajout, c(id_from_wikiid(sommet_cible, graph_rajout), id_from_wikiid(V(communaute)$wikiid[L[k]], graph_rajout)))
   }}}
   else{
     commu_à_2_sommet=1
@@ -443,25 +434,26 @@ list_edges_kept
 length(vertices_missing_links) # 755
 length(list_edges_kept) # 702
 
-vertices_missing_links[[1]][[1]] %in% list_edges_kept # TRUE : v appartient a la composante connexe la 
+vertices_missing_links[[2]][[1]] %in% list_edges_kept # TRUE : v appartient a la composante connexe la 
                             # plus grande après suppression des arêtes
-v <- vertices_missing_links[[1]]
+v <- vertices_missing_links[[2]]
 v[1]
 # test de ego partition
 
-com <- ego_partition(2695433,graph_edges_deleted,mod_vector)[[1]]
-com
+com <- ego_partition(v[1],graph_edges_deleted,mod_vector)[[1]]
 
 com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
 
 katz_similarity(g = g1, order = 3,beta = 0.01)
 g1 <-induced.subgraph(graph_edges_deleted,com_id)
-g1
+resume(g1)
 plot.igraph(g1)
 V(g1)
 similarities=c("jaccard","invlogweighted","katz")
 graph_edges_deleted_add=ajout_lien(graph_rajout = graph_edges_deleted, communaute = g1, similarity =similarities,sommet_cible = v[[1]], nb_ajout = v[2])
-g2=ajout_lien(graph_rajout = g1, communaute = g1, similarity =similarities,sommet_cible = v[[1]], nb_ajout = v[2])
+g2=ajout_lien(g1, communaute = g1, similarities =similarities,sommet_cible = v[[1]], nb_ajout = v[2])
+resume(g2[[1]])
+resume(g1)
 g2[1]
 plot.igraph(g2[[1]])
 resume(graph_edges_deleted_add)
@@ -486,6 +478,8 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   list_edges_kept<-x[[3]]
   #compte les sommet ayant une communaute de 2
   commu_à_2_sommets=0
+  
+  graphe_rajout=graph_edges_deleted
   # on ajoute les lien au sommets présent dans la composante complexe la plus grande de x
   for (k in 1:length(vertices_missing_links)){
     print(k)
@@ -499,8 +493,8 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
     # on regarde 
     print(gv)
     #ajout lien
-    resultat= ajout_lien(graph_rajout = graph_edges_deleted, communaute = gv, similarities =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
-    graph_edges_deleted=resultat[[1]]
+    resultat= ajout_lien(graph_rajout =graphe_rajout , communaute = gv, similarities =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
+    graphe_rajout=resultat[[1]]
     if(resultat[[2]]==1){
       commu_à_2_sommets=commu_à_2_sommets+1
     }
@@ -516,7 +510,7 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   for (k in 1:length(vertices_missing_links)){
     if (vertices_missing_links[[k]][[1]] %in% list_edges_kept){
       v <- vertices_missing_links[[k]][1]
-      if (identical(sort(neighbors(graph_edges_deleted, v = id_from_wikiid(v, graph_edges_deleted), mode = 'out' )$label),neighbors(largestComp, v = id_from_wikiid(v,largestComp), mode = 'out' )$label)) {
+      if (identical(sort(neighbors(graphe_rajout, v = id_from_wikiid(v, graph_edges_deleted), mode = 'out' )$label),neighbors(largestComp, v = id_from_wikiid(v,largestComp), mode = 'out' )$label)) {
         Accuracy=1+Accuracy
         }
     }
