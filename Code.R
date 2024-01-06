@@ -4,7 +4,7 @@ library(docstring)
 library(purrr) # pour la fonction map
 
 wikipedia<-read.graph("wikipedia.gml",format="gml")
-V(wikipedia)[[2]]$wikiid
+
 
 ################################ Fonction Résumé ###############################
 
@@ -37,6 +37,7 @@ degreeDistRepres(wikipedia)
 mod_R <-function(g,C,B,S){
   #R = B_{in}/B_{out}
   #C,B,S sont trois sous ensembles disjoints de V(g), g est un graphe
+  if(length(S) == 0){return(0.5)}
   Bid=sapply(B, id_from_wikiid,g)
   Sid=sapply(S, id_from_wikiid,g)
   bin<-length(E(g)[Bid %->% Bid])
@@ -50,6 +51,7 @@ mod_R <-function(g,C,B,S){
 mod_M<-function(g,C,B,S){
   #D = B union C
   #M = D_{in}/D_{out}
+  if(length(S) == 0){return(0.5)}
   D <- union(C,B)
   D_id <- sapply(D, id_from_wikiid,g)
   Sid=sapply(S, id_from_wikiid,g)
@@ -61,6 +63,7 @@ mod_M<-function(g,C,B,S){
 ################################# Modularité L #################################
 
 mod_L<-function(g,C,B,S){
+  if(length(S) == 0){return(0.5)}
   D<-union(C,B)
   D_id = sapply(D, id_from_wikiid, g)
   B_id = sapply(B, id_from_wikiid, g)
@@ -75,6 +78,70 @@ neighbors_in<-function(n,g,E){
   return(length(intersect(neighbors(g,n,mode=mode),E)))
   
 }
+
+################ Critère d'arrêt de la construction de communauté ##############
+stop_criteria_mostQ <- function(Q0_vector, Q1_vector){
+  
+  #' Critère d'arrêt de la fonction de construction
+  #' de communauté locale avec modularités multiples.
+  #' Suit une politique de majorité.
+  #' 
+  #' @param Q0_vector : Vecteur des anciennes modularités
+  #' @param Q1_vector : Vecteur des nouvelles modularités
+  #' 
+  #' @return TRUE si majorité des qualités strictement améliorées, FALSE sinon.
+  
+  
+  if (length(Q0_vector) != length(Q1_vector)){stop("Erreur stop_criteria: longueurs de vecteur différentes.")}
+  
+  n <- length(Q0_vector)
+  
+  Q1_higher <- 0
+  
+  for (i in 1:n){
+    
+    # Incrémente ou non selon amélioration de la qualité.
+    Q1_higher <- Q1_higher + as.integer(Q1_vector[i] > Q0_vector[i])
+    
+    if (Q1_higher > n/2){return(TRUE)}
+    
+    if (i-Q1_higher > n/2){return(FALSE)}
+    
+  }
+  
+}
+
+stop_criteria_leastGainPolicy <- function(Q0_vector, Q1_vector){
+  
+  #' Critère d'arrêt de la fonction de construction
+  #' de communauté locale avec modularités multiples.
+  #' Suit la least gain policy.
+  #' 
+  #' @param Q0_vector : Vecteur des anciennes modularités
+  #' @param Q1_vector : Vecteur des nouvelles modularités
+  #' 
+  #' @return TRUE si majorité des qualités strictement améliorées, FALSE sinon.
+  
+  
+  if (length(Q0_vector) != length(Q1_vector)){stop("Erreur stop_criteria: longueurs de vecteur différentes.")}
+  
+  n <- length(Q0_vector)
+  
+  Q1_higher <- 0
+  
+  for (i in 1:n){
+    
+    # Incrémente ou non selon amélioration de la qualité.
+    Q1_higher <- Q1_higher + as.integer(Q1_vector[i] > Q0_vector[i])
+    
+    if (Q1_higher > 0){return(TRUE)}
+    
+  }
+  return(FALSE)
+  
+}
+
+
 ########### Fonctions de calcul de la communauté égo-centrée ###################
 
 update <- function(n,g,C,B,S){
@@ -117,22 +184,29 @@ update <- function(n,g,C,B,S){
 #g = largest_component(wikipedia)
 #mod_vector = c(mod_R,mod_M,mod_L)
 
-local_com <- function(target,g,mod_vector){
-  #initialisation
+
+local_com <- function(target,g,mod_vector, stop_criteria){
+  
+  # Validité des arguments. 
   if(is.igraph(g) && target %in% V(g)$wikiid){
+    
+    # Initialisation.
     C<-c()
     B<-c(target)
     S<- c(V(g)[neighbors(g,id_from_wikiid(target,g),mode=mode)]$wikiid)
-    Q<-0
-    new_Q<-list(0,0)
-    while((length(S)>0) && (new_Q[[2]]>=Q)){
+    Q<-rep(-1,length(mod_vector))
+    new_Q <- list(0, rep(0,length(mod_vector)))
+    
+    while((length(S)>0) && (stop_criteria(Q, new_Q[[2]]))){
+      
+      # Actualisation de la suite de Q.
       Q<-new_Q[[2]]
       new_Q<-Q_generator(g,C,B,S,mod_vector)
       
       # QS<-sapply(S,compute_quality,g,C,B,S,mod)
       # new_Q<-max(QS)
-      if(new_Q[[2]]>=Q){
-        s_node<- new_Q[[1]]
+      if(stop_criteria(Q, new_Q[[2]])){
+        s_node <- new_Q[[1]]
         res<-update(s_node,g,C,B,S)
         C<-res$C
         B<-res$B
@@ -142,9 +216,16 @@ local_com <- function(target,g,mod_vector){
     return(union(C,B))
   }
   else{
-    stop("invalid arguments")
+    stop("Arguments invalides.")
   }
 }
+
+ego_partition<-function(target,g,mod_vector,stop_criteria){
+  res<-local_com(target,g,mod_vector, stop_criteria)
+  # res_not_com<-V(g)[!(wikiid %in% res)]$wikiid
+  return(res)
+}
+
 
 id_from_wikiid<-function(wikiid,g=wikipedia){
   return(which(V(g)$wikiid==wikiid))
@@ -158,7 +239,7 @@ wiki_deletion<-function(graph,percentage){
   #' et supprime le pourcentage d'arêtes fourni parmi cette composante
   #' 
   #' @param graph : Graphe auquel il faut supprimer des arêtes
-  #' @param percentage : Pourcentage de suppression d'arêtes
+  #' @param percentage : Pourcentage de suppression d'arêtes, en flottant
   #' 
   #' @return Le graphe avec liens supprimés et la liste de listes (sommets
   #' ayant au moins une arête manquante,nombre d'arêtes manquantes pour le 
@@ -168,17 +249,34 @@ wiki_deletion<-function(graph,percentage){
   # Recherche de la plus grande composante connexe du graphe
   largestComp <- largest_component(graph)
   
+  # Sommets ayant un degré out entre 2 et 5
+  small_degree_vertices_list_wikiid = V(largestComp)[(degree(largestComp,mode = "out") < 6) & (degree(largestComp,mode = "out")>=2)]$wikiid
+  small_degree_vertices_list_id = flatten_int(map(small_degree_vertices_list_wikiid,id_from_wikiid,largestComp))
+  
+  # Définition du graphe avec liens supprimés
+  g_edges_deleted = largestComp
+  
+  # Nombre de liens à retirer
+  number_links_to_delete = round(percentage*length(E(largestComp)))
+  i = 0
+  
   # Suppression de liens de façon aléatoire dans cette composante connexe
-  graph_edges_deleted<-delete_edges(largestComp,sample(E(largestComp),percentage*length(E(largestComp))))
+  while(i<number_links_to_delete){
+    v = sample(small_degree_vertices_list_id,1)
+    if(length(E(largestComp)[v %->% E(largestComp)])>1){
+      g_edges_deleted = delete.edges(g_edges_deleted,sample(E(g_edges_deleted)[v %->% E(g_edges_deleted)],1))
+      i = i+1
+    }
+  }
   
   # Récupération des sommets ayant au moins une arête retirée
-  vertices_missing_link<-V(largestComp)$wikiid[degree(largestComp,mode="out")!=degree(graph_edges_deleted,mode="out")]
+  vertices_missing_link<-V(largestComp)$wikiid[degree(largestComp,mode="out")!=degree(g_edges_deleted,mode="out")]
   
   # Liste des tuples sommets-liens manquants
   number_edges_removed_list<-c()
   for (vertex in vertices_missing_link){
-    initial_degree<-degree(largestComp)[[id_from_wikiid(vertex,graph_edges_deleted)]]
-    new_degree<-degree(graph_edges_deleted)[[id_from_wikiid(vertex,graph_edges_deleted)]]
+    initial_degree<-degree(largestComp)[[id_from_wikiid(vertex,g_edges_deleted)]]
+    new_degree<-degree(g_edges_deleted)[[id_from_wikiid(vertex,g_edges_deleted)]]
     vertice_num_missing_links_tuple<-c(vertex,initial_degree-new_degree)
     
     number_edges_removed_list<-c(number_edges_removed_list,list(vertice_num_missing_links_tuple))
@@ -186,14 +284,12 @@ wiki_deletion<-function(graph,percentage){
   
   # Constitution de la liste des sommets ayant perdu un lien, mais restant dans
   # la plus grande composante connexe. 
-  lg_comp_deleted_graph <-largest_component(graph_edges_deleted)
+  lg_comp_deleted_graph <-largest_component(g_edges_deleted)
   
   list_edges_kept <- vertices_missing_link[vertices_missing_link %in% V(lg_comp_deleted_graph)$wikiid]
   
-  return (list(graph_edges_deleted,number_edges_removed_list,list_edges_kept))
+  return (list(g_edges_deleted,number_edges_removed_list,list_edges_kept))
 }
-
-
 
 
 ########################## Algorithme de vote de Borda #########################
@@ -240,7 +336,6 @@ Borda<-function(matrix_Q_values){
   # meilleur sommet
 }
 
-
 ####################### Fonction de modularité moyenne #########################
 
 
@@ -264,36 +359,39 @@ Q_generator <- function(g, C, B, S, mod_vector) {
   # plus une ligne pour les
   # indices (ou plutôt wikiid).
   Q_values <- matrix(rep(0,n*p),nrow=n)
-  
+  j = 1
   for (j in 1:p){
     
     # Génération de la communauté hypothétique
     # (si j était dans la communauté)
     res <- update(S[[j]],g,C,B,S)
     
-    for (i in 1:n)
-    {Q_values[i,j] <- mod_vector[[i]](g, res$C, res$B, res$S)}
+    for (i in 1:n){
+    Q_values[i,j] <- mod_vector[[i]](g, res$C, res$B, res$S)}
   }
   
   # Classement par modularité
-
+  
   vertices_ranking <- Borda(Q_values)
   best_vertice_index <-which.max(vertices_ranking)
-  Q_average = mean(Q_values[,best_vertice_index])
   
   # Renvoie id sommet à ajouter et la qualité associée.
-  return(list(S[[best_vertice_index]],Q_average))
+  return(list(S[[best_vertice_index]],Q_values[,best_vertice_index]))
 }
 
-########################## Recommendation de lien #################################
-### LEs similarité doivent donner des matrices
-####################### Similarite katz#################################################
+########################## Recommendation de lien ##############################
+
+### Les similarité doivent donner des matrices
+
+####################### Similarite Katz ########################################
+
 # ENTREES: 
 # g: le graphe
 # order: ordre maximal. Tronqué au-delà.
 # beta: paramètre d'horizon
 # SORTIE: matrice de similarité
 # (avec coeffs diagonaux à zéro)
+
 katz_similarity <- function (g, order, beta){
   
   l <- vcount(g)
@@ -420,32 +518,36 @@ ajout_lien<- function(graph_rajout, communaute, similarities, sommet_cible, nb_a
 
 # Définition vecteur de modularité
 mod_vector = c(mod_R,mod_M,mod_L)
-
+similarities = c('jaccard','dice','invlogweighted')
 # Test wiki_deletion 
 x<-wiki_deletion(wikipedia, 0.01)
 
 # Affectation du résultat de wiki deletion
 graph_edges_deleted<-x[[1]]
-graph_edges_deleted
 vertices_missing_links<-x[[2]]
 list_edges_kept<-x[[3]]
-graph_edges_deleted
-list_edges_kept
-length(vertices_missing_links) # 755
-length(list_edges_kept) # 702
 
-vertices_missing_links[[2]][[1]] %in% list_edges_kept # TRUE : v appartient a la composante connexe la 
+length(vertices_missing_links) # 811
+length(list_edges_kept) # 795
+id_from_wikiid(44904,graph_edges_deleted)
+vertices_missing_links[[20]][[1]] %in% list_edges_kept # TRUE : v appartient a la composante connexe la 
                             # plus grande après suppression des arêtes
-v <- vertices_missing_links[[2]]
+v <- vertices_missing_links[[11]]
 v[1]
 # test de ego partition
 
-com <- ego_partition(v[1],graph_edges_deleted,mod_vector)[[1]]
+com <- ego_partition(v[1],graph_edges_deleted,mod_vector,stop_criteria_mostQ)
 
 com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
 
-katz_similarity(g = g1, order = 3,beta = 0.01)
-g1 <-induced.subgraph(graph_edges_deleted,com_id)
+
+for(v in vertices_missing_links){
+  print(length(ego_partition(v[1],graph_edges_deleted,mod_vector,stop_criteria_mostQ)))
+  print(v[1])
+  cat("\n")
+}
+
+
 resume(g1)
 plot.igraph(g1)
 V(g1)
@@ -476,6 +578,7 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   graph_edges_deleted<-x[[1]]
   vertices_missing_links<-x[[2]]
   list_edges_kept<-x[[3]]
+  print(length(list_edges_kept))
   #compte les sommet ayant une communaute de 2
   commu_à_2_sommets=0
   
@@ -487,7 +590,7 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
     v <- vertices_missing_links[[k]] #Sommet cible
     print(v)
     # communaute ego-centre
-    com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector)[[1]]
+    com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector,stop_criteria_mostQ)
     com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
     gv <-induced.subgraph(graph_edges_deleted,com_id)# communaute ego-centre
     # on regarde 
@@ -510,7 +613,8 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   for (k in 1:length(vertices_missing_links)){
     if (vertices_missing_links[[k]][[1]] %in% list_edges_kept){
       v <- vertices_missing_links[[k]][1]
-      if (identical(sort(neighbors(graphe_rajout, v = id_from_wikiid(v, graph_edges_deleted), mode = 'out' )$label),neighbors(largestComp, v = id_from_wikiid(v,largestComp), mode = 'out' )$label)) {
+      if (identical(sort(neighbors(graphe_rajout, v = id_from_wikiid(v, graph_edges_deleted), mode = 'out' )$label),
+                    neighbors(largestComp, v = id_from_wikiid(v,largestComp), mode = 'out' )$label)) {
         Accuracy=1+Accuracy
         }
     }
@@ -521,8 +625,9 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   print(Accuracy/length(list_edges_kept))
   print("Accuracy avec sommet isole :\n")
   print(Accuracy/length(vertices_missing_links) )
+  return (c(Accuracy/length(list_edges_kept),Accuracy/length(vertices_missing_links)))
 }
 
 
-recommendation_de_lien_mesure(wikipedia, 0.01)
+result = recommendation_de_lien_mesure(wikipedia, 0.005)
 ## regarfr errrueur à cause du nb d'ajout 
