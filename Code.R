@@ -593,18 +593,18 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
       com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector,stop_criteria_mostQ)
       com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
       gv <-induced.subgraph(graph_edges_deleted,com_id)# communaute ego-centre
-      
+      # on regarde 
+      print(gv)
       ########
       ## on regarde si le sommet à relier est dans gv
       n_gv=neighbors(gv, v = id_from_wikiid(v[1], gv), mode = 'out' )$label
       n_wiki=neighbors(wikipedia, v = id_from_wikiid(v[1],wikipedia), mode = 'out' )$label
       L=V(gv)$label
-      if(!(setdiff(n_wiki, n_gv) %in% L)){
+      if(!(all(setdiff(n_wiki, n_gv) %in% L))){
         sommet_à_relier_dans_commu=sommet_à_relier_dans_commu+1
       }
       #######
-      # on regarde 
-      print(gv)
+      
       #ajout lien
       resultat= ajout_lien(graph_rajout =graphe_rajout , communaute = gv, similarities =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
       graphe_rajout=resultat[[1]]
