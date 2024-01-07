@@ -596,10 +596,10 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
       
       ########
       ## on regarde si le sommet à relier est dans gv
-      n_g1=neighbors(gv, v = id_from_wikiid(v[1], g1), mode = 'out' )$label
+      n_gv=neighbors(gv, v = id_from_wikiid(v[1], gv), mode = 'out' )$label
       n_wiki=neighbors(wikipedia, v = id_from_wikiid(v[1],wikipedia), mode = 'out' )$label
       L=V(gv)$label
-      if(!(setdiff(n_wiki, n_g1) %in% L)){
+      if(!(setdiff(n_wiki, n_gv) %in% L)){
         sommet_à_relier_dans_commu=sommet_à_relier_dans_commu+1
       }
       #######
@@ -640,6 +640,10 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   print(Accuracy/length(vertices_missing_links) )
   return (c(Accuracy/length(list_edges_kept),Accuracy/length(vertices_missing_links)))
 }
+
+recommendation_de_lien_mesure(wikipedia, 0.005)
+
+
 result=0
 result2=0
 for (k in 1:3){
