@@ -617,6 +617,9 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   }
   print("commu_à_2_sommets=")
   print(commu_à_2_sommets)
+  
+  print("sommet_à_relier_dans_commu=")
+  print(sommet_à_relier_dans_commu)
   # Evaluation
   
   Accuracy=0
