@@ -2,7 +2,7 @@
 library(igraph)
 library(docstring)
 library(purrr) # pour la fonction map
-
+library(tictoc)
 wikipedia<-read.graph("wikipedia.gml",format="gml")
 
 
@@ -517,7 +517,7 @@ ajout_lien<- function(graph_rajout, communaute, similarities, sommet_cible, nb_a
 ?wiki_deletion
 
 # Définition vecteur de modularité
-mod_vector = c(mod_R,mod_M,mod_L)
+mod_vector = c(mod_R)
 similarities = c('jaccard','dice','invlogweighted')
 # Test wiki_deletion 
 x<-wiki_deletion(wikipedia, 0.01)
@@ -581,27 +581,37 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   print(length(list_edges_kept))
   #compte les sommet ayant une communaute de 2
   commu_à_2_sommets=0
-  
+  sommet_à_relier_dans_commu=0
   graphe_rajout=graph_edges_deleted
   # on ajoute les lien au sommets présent dans la composante complexe la plus grande de x
   for (k in 1:length(vertices_missing_links)){
     print(k)
-  if (vertices_missing_links[[k]][[1]] %in% list_edges_kept){
-    v <- vertices_missing_links[[k]] #Sommet cible
-    print(v)
-    # communaute ego-centre
-    com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector,stop_criteria_mostQ)
-    com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
-    gv <-induced.subgraph(graph_edges_deleted,com_id)# communaute ego-centre
-    # on regarde 
-    print(gv)
-    #ajout lien
-    resultat= ajout_lien(graph_rajout =graphe_rajout , communaute = gv, similarities =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
-    graphe_rajout=resultat[[1]]
-    if(resultat[[2]]==1){
-      commu_à_2_sommets=commu_à_2_sommets+1
+    if (vertices_missing_links[[k]][[1]] %in% list_edges_kept){
+      v <- vertices_missing_links[[k]] #Sommet cible
+      print(v)
+      # communaute ego-centre
+      com <- ego_partition(v[[1]],graph_edges_deleted,mod_vector,stop_criteria_mostQ)
+      com_id <- flatten_int(map(com, id_from_wikiid, graph_edges_deleted))
+      gv <-induced.subgraph(graph_edges_deleted,com_id)# communaute ego-centre
+      
+      ########
+      ## on regarde si le sommet à relier est dans gv
+      n_g1=neighbors(gv, v = id_from_wikiid(v[1], g1), mode = 'out' )$label
+      n_wiki=neighbors(wikipedia, v = id_from_wikiid(v[1],wikipedia), mode = 'out' )$label
+      L=V(gv)$label
+      if(!(setdiff(n_wiki, n_g1) %in% L)){
+        sommet_à_relier_dans_commu=sommet_à_relier_dans_commu+1
+      }
+      #######
+      # on regarde 
+      print(gv)
+      #ajout lien
+      resultat= ajout_lien(graph_rajout =graphe_rajout , communaute = gv, similarities =c("jaccard","invlogweighted","katz"),sommet_cible = v[[1]], nb_ajout = v[[2]])
+      graphe_rajout=resultat[[1]]
+      if(resultat[[2]]==1){
+        commu_à_2_sommets=commu_à_2_sommets+1
+      }
     }
-  }
     
     
   }
@@ -616,7 +626,7 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
       if (identical(sort(neighbors(graphe_rajout, v = id_from_wikiid(v, graph_edges_deleted), mode = 'out' )$label),
                     neighbors(largestComp, v = id_from_wikiid(v,largestComp), mode = 'out' )$label)) {
         Accuracy=1+Accuracy
-        }
+      }
     }
     
     
@@ -627,7 +637,11 @@ recommendation_de_lien_mesure=function(wikipedia, percentage){
   print(Accuracy/length(vertices_missing_links) )
   return (c(Accuracy/length(list_edges_kept),Accuracy/length(vertices_missing_links)))
 }
-
-
-result = recommendation_de_lien_mesure(wikipedia, 0.005)
-## regarfr errrueur à cause du nb d'ajout 
+result=0
+result2=0
+for (k in 1:3){
+result = result + recommendation_de_lien_mesure(wikipedia, 0.005)[[0]]
+result2=result2 + recommendation_de_lien_mesure(wikipedia, 0.005)[[1]]
+}
+print(result/5)
+print(result2/5)
